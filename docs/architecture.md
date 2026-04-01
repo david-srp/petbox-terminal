@@ -1,25 +1,28 @@
-# Petbox Terminal — Architecture (v1)
+# Petbox Terminal — Architecture (v2)
 
 ## Stack
 - **Runtime**: Node.js (>=18)
 - **Dependencies**: None (stdlib only)
-- **Entry point**: `src/index.mjs`
+- **Entry point**: `src/index.mjs` (or `bin/petbox.mjs` for CLI)
 
 ## Directory Structure
 ```
 petbox-terminal/
+├── bin/
+│   └── petbox.mjs          # CLI entry (#!/usr/bin/env node)
 ├── docs/
 │   ├── requirements.md
 │   └── architecture.md
 ├── src/
-│   ├── index.mjs          # Entry point, REPL loop, command router
-│   ├── bones.mjs          # Deterministic identity from hash
-│   ├── soul.mjs           # Persistent name/personality (load/save)
-│   ├── species.mjs        # 18 species ASCII templates
-│   ├── render.mjs         # Pet renderer (sprite + hat + eyes + speech)
-│   ├── animation.mjs      # Idle loop, hearts animation
-│   ├── stats.mjs          # RPG stat derivation and display
-│   └── commands.mjs       # /buddy command handlers
+│   ├── index.mjs            # REPL loop, rendering, signal handling
+│   ├── bones.mjs            # Deterministic identity from hash
+│   ├── soul.mjs             # Persistent name/personality (load/save)
+│   ├── species.mjs          # 18 species ASCII templates + eyes + hats
+│   ├── render.mjs           # Pet renderer (sprite + hat + eyes + speech)
+│   ├── animation.mjs        # Idle loop, hearts animation
+│   ├── stats.mjs            # RPG stat derivation with rarity scaling
+│   └── commands.mjs         # /buddy command handlers
+├── .gitignore
 ├── README.md
 └── package.json
 ```
@@ -27,64 +30,45 @@ petbox-terminal/
 ## Module Responsibilities
 
 ### bones.mjs
-- `generateBones(userId, salt)` → returns a deterministic seed object
-- Uses Node.js `crypto.createHash('sha256')` on `userId + salt`
-- From hash bytes, derives: speciesIndex, rarityRoll, shinyRoll,
-  eyeStyleIndex, hatIndex, stat seeds (5 values)
+- `generateBones(userId)` → deterministic seed object
+- SHA-256 of `userId + salt` → species, rarity, shiny, eyes, hat, stat seeds
 - Pure function, no state
 
 ### soul.mjs
-- `loadSoul()` → reads `~/.petbox/soul.json` or returns null
-- `saveSoul(soul)` → writes to `~/.petbox/soul.json`
-- Soul shape: `{ name: string, personality: string, createdAt: string }`
-- On first run, generates random name + personality from preset lists
+- Load/save `~/.petbox/soul.json`
+- Soul shape: `{ name, personality, createdAt }`
+- Deterministic initial generation from hash, then persistent
 
 ### species.mjs
-- Exports `SPECIES` array of 18 entries
-- Each entry: `{ name, template: string[], eyePositions: [row, col][] }`
-- Templates are 5-line arrays, 12 chars wide
-- Eye positions mark where to inject eye characters
+- 18 species from the Buddy article
+- Each: `{ name, template: string[5], eyePositions: [row, col][] }`
+- 6 eye styles, 10 hats
 
 ### render.mjs
-- `renderPet(bones, soul, frame, speechText)` → string[]
-- Composes: hat line (if applicable) + species template with eyes + speech bubble
-- Speech bubble: box-drawing border, max width ~20 chars, word-wrapped
-- Returns array of lines ready for stdout
+- `renderPet(bones, frame, speechText)` → string[]
+- Composes hat + template with eyes + speech bubble
+- Speech bubble: box-drawing border, word-wrapped at 28 chars
 
 ### animation.mjs
-- `AnimationLoop` class
-- Manages 15-frame idle cycle at 500ms intervals
-- Frames 0-11: normal, 12-13: twitch (slight offset), 14: blink (eyes closed)
-- `triggerHearts()` → switches to 5-frame hearts overlay, then back to idle
-- Uses `setInterval` for timing
+- 15-frame idle cycle at 500ms (twitch on 12-13, blink on 14)
+- Hearts overlay mode (5 frames) via `triggerHearts()`
 
 ### stats.mjs
-- `deriveStats(bones)` → `{ DEBUGGING, PATIENCE, CHAOS, WISDOM, SNARK }`
-- Each stat: `1 + (seedByte % 20)` → range 1-20
-- `formatStats(stats)` → ASCII bar chart string
+- Rarity-scaled stat ranges (Common 1-12 through Legendary 14-20)
+- `deriveStats(bones)` → 5 stats, `formatStats(stats)` → bar chart
 
 ### commands.mjs
-- Parses `/buddy [subcommand] [args]`
-- Routes to appropriate handler
-- Returns response string to display
+- Routes `/buddy [subcommand]` to handlers
+- Returns response strings for speech bubble display
 
 ### index.mjs
-- Creates readline interface for user input
-- Initializes bones from userId (uses `os.userInfo().username`)
-- Loads or creates soul
-- Starts animation loop
-- Routes `/buddy` commands
-- Renders pet state to terminal on each frame
-
-## Rendering Strategy
-- Clear screen region and redraw pet + UI each animation frame
-- Use ANSI escape codes for cursor positioning
-- Pet renders in a fixed region above the input prompt
-- Speech bubble renders adjacent to or above the pet
+- Readline REPL with animation redraw at 100ms
+- ANSI escape cursor movement for in-place pet rendering
+- Graceful cleanup on SIGINT, /quit, and stream close
 
 ## Data Flow
 ```
-userId → bones.mjs → deterministic identity (species, rarity, eyes, hat, stats)
+userId → bones.mjs → deterministic identity
                    ↓
               soul.mjs → persistent name/personality
                    ↓
@@ -96,4 +80,3 @@ userId → bones.mjs → deterministic identity (species, rarity, eyes, hat, sta
 ## Persistence
 - `~/.petbox/soul.json` — only persistent file
 - Bones are always recomputed, never stored
-- No database, no network calls

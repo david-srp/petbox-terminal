@@ -1,13 +1,19 @@
 {
   "name": "petbox-terminal",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Terminal ASCII pet system inspired by Claude Code Buddy",
   "type": "module",
   "main": "src/index.mjs",
+  "bin": {
+    "petbox": "bin/petbox.mjs"
+  },
   "scripts": {
     "start": "node src/index.mjs"
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "keywords": ["terminal", "ascii", "pet", "cli", "buddy"],
+  "license": "MIT",
+  "files": ["bin", "src"]
 }

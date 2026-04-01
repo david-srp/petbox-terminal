@@ -18,6 +18,9 @@ if (!soul) {
 
 const species = SPECIES[bones.speciesIndex];
 
+// Pet area height: hat (0 or 1) + 5 template lines + 1 padding
+const PET_HEIGHT = (bones.hatIndex >= 0 ? 1 : 0) + 5 + 1;
+
 // --- State ---
 let speechText = null;
 let speechTimer = null;
@@ -33,7 +36,7 @@ function setSpeech(text) {
   speechTimer = setTimeout(() => {
     speechText = null;
     needsRedraw = true;
-  }, 10_000); // auto-hide after 10s
+  }, 10_000);
 }
 
 // --- Animation ---
@@ -49,8 +52,6 @@ const anim = new AnimationLoop(({ mode, frame }) => {
 });
 
 // --- Rendering ---
-const PET_HEIGHT = 8; // max lines for pet area (hat + 5 lines + speech overflow)
-
 function draw() {
   if (!needsRedraw) return;
   needsRedraw = false;
@@ -64,17 +65,26 @@ function draw() {
   }
 
   // Move cursor up to overwrite pet area, then redraw
-  const moveUp = `\x1b[${PET_HEIGHT + 1}A`;
+  const totalLines = Math.max(lines.length, PET_HEIGHT);
+  const moveUp = `\x1b[${totalLines + 1}A`;
   const clearLine = '\x1b[2K';
 
   let output = moveUp;
-  for (let i = 0; i < PET_HEIGHT; i++) {
+  for (let i = 0; i < totalLines; i++) {
     output += clearLine + (lines[i] || '') + '\n';
   }
-  output += clearLine; // clear the prompt line too
+  output += clearLine;
 
   process.stdout.write(output);
   rl.prompt(true);
+}
+
+// --- Cleanup ---
+function cleanup() {
+  anim.stop();
+  clearInterval(drawTimer);
+  if (speechTimer) clearTimeout(speechTimer);
+  console.log(`\n${soul.name} waves goodbye!\n`);
 }
 
 // --- REPL ---
@@ -84,38 +94,37 @@ const rl = createInterface({
   prompt: '> ',
 });
 
-// Print initial greeting
-console.log('\n🐾 Petbox Terminal v1\n');
-console.log(`  Your buddy: ${soul.name} the ${species.name} [${bones.rarity}]`);
+// Header
+const shinyTag = bones.isShiny ? '  ✦ SHINY! ✦' : '';
+console.log('');
+console.log('  ╔══════════════════════════════╗');
+console.log('  ║     Petbox Terminal v2        ║');
+console.log('  ╚══════════════════════════════╝');
+console.log('');
+console.log(`  Your buddy: ${soul.name} the ${species.name} [${bones.rarity}]${shinyTag}`);
 console.log(`  Personality: ${soul.personality}`);
-if (bones.isShiny) console.log('  ✦ SHINY! ✦');
-console.log('  Type /buddy help for commands, /quit to exit.\n');
+console.log('  Type /buddy help for commands, /quit to exit.');
+console.log('');
 
 // Reserve space for pet area
 for (let i = 0; i < PET_HEIGHT; i++) {
   console.log('');
 }
 
-// Initial draw
+// Initial draw + start
 needsRedraw = true;
 draw();
-
-// Start animation
 anim.start();
-
-// Redraw timer
 const drawTimer = setInterval(draw, 100);
 
-// Greeting speech
+// Greeting
 setSpeech(`Hi! I'm ${soul.name}!`);
 
 rl.on('line', (input) => {
   const trimmed = input.trim();
 
   if (trimmed === '/quit' || trimmed === '/exit') {
-    anim.stop();
-    clearInterval(drawTimer);
-    console.log(`\n${soul.name} waves goodbye! 👋\n`);
+    cleanup();
     process.exit(0);
   }
 
@@ -123,9 +132,8 @@ rl.on('line', (input) => {
     const response = handleCommand(trimmed, bones, soul, anim);
     setSpeech(response);
   } else if (trimmed) {
-    // Non-command input: pet might react
     const reactions = [
-      null, null, null, // 60% no reaction
+      null, null, null,
       `${soul.name} tilts head curiously.`,
       `${soul.name}: "Interesting..."`,
     ];
@@ -137,8 +145,12 @@ rl.on('line', (input) => {
 });
 
 rl.on('close', () => {
-  anim.stop();
-  clearInterval(drawTimer);
-  console.log(`\n${soul.name} waves goodbye! 👋\n`);
+  cleanup();
+  process.exit(0);
+});
+
+// Graceful signal handling
+process.on('SIGINT', () => {
+  cleanup();
   process.exit(0);
 });

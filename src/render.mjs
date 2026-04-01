@@ -1,5 +1,7 @@
 import { SPECIES, EYE_STYLES, HATS } from './species.mjs';
 
+const PET_WIDTH = 12;
+
 export function renderPet(bones, frame, speechText) {
   const species = SPECIES[bones.speciesIndex];
   const eyeStyle = EYE_STYLES[bones.eyeStyleIndex];
@@ -25,7 +27,7 @@ export function renderPet(bones, frame, speechText) {
       }
     }
 
-    // Twitch: add slight offset on frames 12-13
+    // Twitch: slight offset on frames 12-13
     if (isTwitch && row >= 1 && row <= 3) {
       line = ' ' + line.slice(0, -1);
     }
@@ -38,19 +40,13 @@ export function renderPet(bones, frame, speechText) {
     lines.push(line);
   }
 
-  // Hearts overlay for /buddy pet
-  if (frame === -1) {
-    // Special heart frames handled by caller passing frame -1..-5
-    lines[0] = '  ♥  ♥  ♥   ';
-  }
-
   // Speech bubble (to the right of the pet)
   const result = [];
   const speechLines = speechText ? formatSpeechBubble(speechText) : [];
 
   const maxRows = Math.max(lines.length, speechLines.length);
   for (let i = 0; i < maxRows; i++) {
-    const petPart = i < lines.length ? lines[i] : '            ';
+    const petPart = i < lines.length ? lines[i] : ' '.repeat(PET_WIDTH);
     const speechPart = i < speechLines.length ? '  ' + speechLines[i] : '';
     result.push(petPart + speechPart);
   }
@@ -59,7 +55,7 @@ export function renderPet(bones, frame, speechText) {
 }
 
 function formatSpeechBubble(text) {
-  const maxWidth = 24;
+  const maxWidth = 28;
   const words = text.split(' ');
   const wrapped = [];
   let current = '';

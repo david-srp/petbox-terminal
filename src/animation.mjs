@@ -24,12 +24,12 @@ export class AnimationLoop {
 
   tick() {
     if (this.mode === 'hearts') {
+      this.onFrame({ mode: 'hearts', frame: this.heartFrame });
       this.heartFrame++;
       if (this.heartFrame >= HEART_FRAMES) {
         this.mode = 'idle';
         this.heartFrame = 0;
       }
-      this.onFrame({ mode: 'hearts', frame: this.heartFrame });
     } else {
       this.frame = (this.frame + 1) % IDLE_FRAMES;
       this.onFrame({ mode: 'idle', frame: this.frame });

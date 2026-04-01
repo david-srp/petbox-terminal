@@ -18,9 +18,6 @@ if (!soul) {
 
 const species = SPECIES[bones.speciesIndex];
 
-// Pet area height: hat (0 or 1) + 5 template lines + 1 padding
-const PET_HEIGHT = (bones.hatIndex >= 0 ? 1 : 0) + 5 + 1;
-
 // --- State ---
 let speechText = null;
 let speechTimer = null;
@@ -28,6 +25,7 @@ let currentFrame = 0;
 let heartMode = false;
 let heartFrame = 0;
 let needsRedraw = true;
+let lastDrawnHeight = 0; // tracks how many lines the pet area currently occupies
 
 function setSpeech(text) {
   speechText = text;
@@ -52,6 +50,10 @@ const anim = new AnimationLoop(({ mode, frame }) => {
 });
 
 // --- Rendering ---
+const HIDE_CURSOR = '\x1b[?25l';
+const SHOW_CURSOR = '\x1b[?25h';
+const CLEAR_LINE = '\x1b[2K';
+
 function draw() {
   if (!needsRedraw) return;
   needsRedraw = false;
@@ -64,17 +66,23 @@ function draw() {
     lines[0] = renderHeartFrame(heartFrame);
   }
 
-  // Move cursor up to overwrite pet area, then redraw
-  const totalLines = Math.max(lines.length, PET_HEIGHT);
-  const moveUp = `\x1b[${totalLines + 1}A`;
-  const clearLine = '\x1b[2K';
+  const contentHeight = lines.length;
 
-  let output = moveUp;
-  for (let i = 0; i < totalLines; i++) {
-    output += clearLine + (lines[i] || '') + '\n';
+  let output = HIDE_CURSOR;
+
+  // Move cursor up to the top of the pet area (+ 1 for prompt line)
+  if (lastDrawnHeight > 0) {
+    output += `\x1b[${lastDrawnHeight + 1}A`;
   }
-  output += clearLine;
 
+  // Redraw content lines
+  for (let i = 0; i < contentHeight; i++) {
+    output += '\r' + CLEAR_LINE + (lines[i] || '') + '\n';
+  }
+  // Erase any stale lines below from previous taller content, then show cursor
+  output += '\x1b[J' + SHOW_CURSOR;
+
+  lastDrawnHeight = contentHeight;
   process.stdout.write(output);
   rl.prompt(true);
 }
@@ -84,6 +92,7 @@ function cleanup() {
   anim.stop();
   clearInterval(drawTimer);
   if (speechTimer) clearTimeout(speechTimer);
+  process.stdout.write(SHOW_CURSOR);
   console.log(`\n${soul.name} waves goodbye!\n`);
 }
 
@@ -107,9 +116,11 @@ console.log('  Type /buddy help for commands, /quit to exit.');
 console.log('');
 
 // Reserve space for pet area
-for (let i = 0; i < PET_HEIGHT; i++) {
+const initialHeight = (bones.hatIndex >= 0 ? 1 : 0) + 5 + 1;
+for (let i = 0; i < initialHeight; i++) {
   console.log('');
 }
+lastDrawnHeight = initialHeight;
 
 // Initial draw + start
 needsRedraw = true;

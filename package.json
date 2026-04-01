@@ -1,0 +1,13 @@
+{
+  "name": "petbox-terminal",
+  "version": "1.0.0",
+  "description": "Terminal ASCII pet system inspired by Claude Code Buddy",
+  "type": "module",
+  "main": "src/index.mjs",
+  "scripts": {
+    "start": "node src/index.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
